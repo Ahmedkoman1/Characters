@@ -6,7 +6,7 @@ import os
 
 app = FastAPI()
 
-API_URL = "https://9a95e532efd6.ngrok-free.app/transcribe"  # رابط Colab
+API_URL = "https://86421fa4dfea.ngrok-free.app/transcribe"  # رابط Colab
 
 @app.post("/upload-audio/")
 async def upload_audio(file: UploadFile = File(...)):

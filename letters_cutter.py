@@ -1,27 +1,31 @@
 import json
 
-# حدد الأحرف / الفونيمات التي تريد تتبعها
-# هذه قائمة مثال للأحرف التي لديك
-target_letters = set(['a', 'e', 'l', 'm', 'o', 'u'])
+# قائمة الحروف المستهدفة
+TARGET_LETTERS = set(['a', 'e', 'l', 'm', 'o', 'u'])
 
-def extract_target_letters(text, targets):
-    # نص صغير للأحرف المختارة فقط
-    filtered = [ch.lower() for ch in text if ch.lower() in targets]
-    return filtered
 
-def main():
-    # قراءة النص النهائي من ChatGPT
-    with open("documentary_intro.txt", "r", encoding="utf-8") as f:
-        text = f.read()
+def extract_target_letters_from_text(text: str, targets: set = TARGET_LETTERS,
+                                     save_path: str = "phonemes.json") -> list:
+    """
+    تستقبل نص، وتستخرج منه الأحرف المستهدفة، وتحفظها في ملف JSON.
 
-    # استخراج الأحرف المطلوبة
-    phonemes = extract_target_letters(text, target_letters)
+    Args:
+        text (str): النص الذي سيتم استخراج الحروف منه.
+        targets (set): مجموعة الحروف المستهدفة (افتراضيًا TARGET_LETTERS).
+        save_path (str): مسار حفظ ملف JSON الناتج.
 
-    # حفظ الأحرف في ملف JSON
-    with open("phonemes.json", "w", encoding="utf-8") as f:
+    Returns:
+        list: قائمة الحروف المستخرجة.
+    """
+    if not text.strip():
+        raise ValueError("❌ النص المدخل فارغ.")
+
+    # استخراج الأحرف المستهدفة فقط
+    phonemes = [ch.lower() for ch in text if ch.lower() in targets]
+
+    # حفظ النتيجة في ملف JSON
+    with open(save_path, "w", encoding="utf-8") as f:
         json.dump(phonemes, f, ensure_ascii=False, indent=2)
 
-    print(f"تم استخراج {len(phonemes)} حرف وحفظها في phonemes.json")
-
-if __name__ == "__main__":
-    main()
+    print(f"✅ تم استخراج {len(phonemes)} حرف وحفظها في {save_path}")
+    return phonemes
