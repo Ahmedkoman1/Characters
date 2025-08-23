@@ -1,26 +1,29 @@
 from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import tempfile
 from speechToText import speech_to_text
 from chatgpt import generate_trump_response
 from letters_cutter import extract_target_letters_from_text
 from tts_rvc import get_audio_from_colab, convert_with_rvc
-import platform
 
 app = FastAPI()
 
-def play_audio(file_path):
-    print(f"\n🔊 تشغيل الصوت: {file_path}")
-    system = platform.system()
+# ✅ تفعيل CORS للسماح للفرونت بالوصول للملفات
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # أو ضع دومين الفرونت فقط
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    if system == "Windows":
-        os.system(f'start "" "{file_path}"')
-    elif system == "Darwin":  # macOS
-        os.system(f"afplay \"{file_path}\"")
-    elif system == "Linux":
-        os.system(f"aplay \"{file_path}\"")
-    else:
-        print("❌ لا يمكن تشغيل الصوت على هذا النظام تلقائيًا.")
+# ✅ مسار مطلق لمجلد الإخراج
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(BASE_DIR, "generated_audios")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 @app.post("/process_audio/")
 async def process_audio(file: UploadFile = File(...)):
@@ -41,27 +44,41 @@ async def process_audio(file: UploadFile = File(...)):
         letters = extract_target_letters_from_text(trump_text)
 
         # 5️⃣ تحويل النص لصوت روبوتي
-        robotic_wav = "robotic.wav"
+        robotic_wav = os.path.join(OUTPUT_DIR, "robotic.wav")
         get_audio_from_colab(trump_text, robotic_wav)
 
         # 6️⃣ تحويل الصوت لصوت ترامب
-        final_audio = convert_with_rvc(
+        final_audio = os.path.join(OUTPUT_DIR, "trump_voice.wav")
+        convert_with_rvc(
             robotic_wav,
             r"C:\Users\TOSHIBA\PycharmProjects\Amk\Donald-Trump_e135_s6480.pth",
             r"C:\Users\TOSHIBA\PycharmProjects\Amk\added_IVF1408_Flat_nprobe_1_Donald-Trump_v2.index",
-            tag="donald-trump"
+            tag="donald-trump",
+            output_path=final_audio
         )
 
-        # 7️⃣ تشغيل الصوت النهائي
-        play_audio(final_audio)
+        # 7️⃣ رابط مباشر للصوت
+        audio_filename = os.path.basename(final_audio)
+        audio_url = f"http://127.0.0.1:8000/audio/{audio_filename}"
 
         return {
             "original_text": text,
             "trump_text": trump_text,
             "letters": letters,
-            "final_audio_path": final_audio
+            "audio_url": audio_url
         }
 
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+# ✅ خدمة الملفات الناتجة مباشرة
+app.mount("/audio", StaticFiles(directory=OUTPUT_DIR), name="audio")
+
+# ✅ تأكيد التشغيل برابط مباشر للملف
+@app.get("/audio/{filename}")
+async def get_audio(filename: str):
+    file_path = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="audio/wav")
+    return {"error": "File not found"}
